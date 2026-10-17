@@ -1,43 +1,50 @@
 # minutes-ext-access
 
-このリポジトリは、[minutes](https://github.com/plaodas/minutes)（Python / FastAPI）を PHP / Laravel 11 と連携させて利用するための疑似環境です。
+[日本語](README.ja.md)
+
+This repository is a stand-in service for calling [minutes](https://github.com/plaodas/minutes) (Python / FastAPI) from PHP / Laravel 11.
 
 - frontend: React
-- backend: PHP 8.4、Laravel 11
+- backend: PHP 8.4, Laravel 11
 - db: MySQL
-- 認証: JWT Bearer
+- authentication: JWT Bearer
 
-minutes の呼び出しは [external.md](https://github.com/plaodas/minutes/blob/main/docs/external.md) の仕様に従います。ブラウザは minutes のトークンを持たず、このアプリの API だけを呼びます。endpoint の一覧は [frontend/README.md](frontend/README.md) にあります。
+Calls to minutes follow [external.md](https://github.com/plaodas/minutes/blob/main/docs/external.md). The browser never holds a minutes token. It calls only this app's API. The endpoint list is in [frontend/README.md](frontend/README.md).
 
-## 構成
+## Related repositories
+
+- [minutes](https://github.com/plaodas/minutes): transcription, summary, and action-item extraction from audio, running on a local CPU. This repository calls that service. External use is specified in [external.md](https://github.com/plaodas/minutes/blob/main/docs/external.md).
+- [memoroku](https://github.com/plaodas/memoroku): a phone voice-memo app that shows text processed by minutes on a home-screen widget. It uploads a recording to minutes, waits for the transcript, and displays a short sentence.
+
+## Layout
 
 ```text
 .
-├── docker-compose.yml          MySQL と Laravel
+├── docker-compose.yml          MySQL and Laravel
 ├── backend/                    PHP 8.4 / Laravel 11
-│   ├── app/Http/Controllers/   ログインと minutes のプロキシ
+│   ├── app/Http/Controllers/   Login and the minutes proxy
 │   ├── app/Services/MinutesClient.php
 │   ├── routes/api.php
-│   ├── docker/entrypoint.sh    起動時の migrate と seed
-│   └── .env                    MINUTES_BASE_URL と MINUTES_PROVISION_SECRET
+│   ├── docker/entrypoint.sh    migrate and seed on startup
+│   └── .env                    MINUTES_BASE_URL and MINUTES_PROVISION_SECRET
 └── frontend/                   React / Vite
     └── src/
-        ├── api.js              Laravel への呼び出し
-        ├── auth/               JWT の保持
-        └── pages/              ログインと保護されたページ
+        ├── api.js              Calls to Laravel
+        ├── auth/               JWT storage
+        └── pages/              Login and the protected page
 ```
 
-ブラウザの JWT は `frontend` が持ちます。minutes の発行秘密と、ユーザーごとの minutes トークンは `backend` だけが持ちます。
+The browser JWT stays in `frontend`. The minutes provision secret and each user's minutes token stay in `backend`.
 
-## 起動
+## Start
 
-minutes を先に起動し、その `PROVISION_SECRET` を `backend/.env` の `MINUTES_PROVISION_SECRET` に書きます。`.env` が無い場合、コンテナ起動時に `.env.example` から作られます。ベース URL の初期値は `http://host.docker.internal/api` です。
+Start minutes first, and copy its `PROVISION_SECRET` into `MINUTES_PROVISION_SECRET` in `backend/.env`. If `.env` is missing, the container copies `.env.example` on startup. The default base URL is `http://host.docker.internal/api`.
 
 ```bash
 docker compose up --build
 ```
 
-MySQL と Laravel が起動します。Laravel は http://localhost:8000 です。別ターミナルでフロントエンドを起動します。
+MySQL and Laravel start. Laravel is at http://localhost:8000. In another terminal, start the frontend.
 
 ```bash
 cd frontend
@@ -45,38 +52,38 @@ npm install
 npm run dev
 ```
 
-ブラウザで http://localhost:5173 を開きます。`/api` は Vite が `http://localhost:8000` へ転送します。
+Open http://localhost:5173. Vite forwards `/api` to `http://localhost:8000`.
 
-初回ログインのユーザーは seed で作られます。
+The seed creates the first login user.
 
-- メールアドレス: `demo@example.com`
-- パスワード: `password`
+- Email: `demo@example.com`
+- Password: `password`
 
-テストは次のコマンドです。
+Run the tests with:
 
 ```bash
 docker compose run --rm backend php artisan test
 ```
 
-Composer の security audit が現行の Laravel 11 をブロックするため、`backend/composer.json` では `audit.block-insecure` を `false` にしています。
+Composer's security audit blocks the current Laravel 11 release, so `backend/composer.json` sets `audit.block-insecure` to `false`.
 
-## 使用方法
+## Use
 
-1. ログインすると、JWT で保護されたページが開きます。
+1. After login, a page protected by the JWT opens.
 
-   ![ログイン](docs/login.png)
+   ![Login](docs/login.png)
 
-2. 音声ファイルを選び「議事録を作る」を押します。対応形式は `.wav`、`.mp3`、`.m4a`、`.flac`、`.ogg`、`.opus`、または `audio/` です。
-3. 「これまでのタスク」にタスクが追加されます。処理中は `stage` をポーリングし、待機、前処理、文字起こし、整形、完了、失敗、キャンセル済みのいずれかで表示します。一覧の各行にはエラー文を出しません。
+2. Choose an audio file and press "議事録を作る". Accepted types are `.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg`, `.opus`, or `audio/`.
+3. The task appears under "これまでのタスク". While it runs, the app polls `stage` and shows one of: waiting, preprocessing, transcribing, formatting, done, failed, or cancelled. Error text is not shown on each row.
 
-   ![保護されたページ](docs/tasks.png)
+   ![Protected page](docs/tasks.png)
 
-4. 完了したタスクを開くと、`result.minutes` を Markdown で表示します。ここには整形済み議事録、要約、アクションアイテムが含まれます。文字起こしは `result.transcript` をプレーンテキストで表示します。
+4. Opening a finished task renders `result.minutes` as Markdown. That field contains the formatted minutes, the summary, and the action items. The transcript is `result.transcript`, shown as plain text.
 
-   ![完了したタスク](docs/result-top.png)
+   ![Finished task](docs/result-top.png)
 
-   ![要約と文字起こし](docs/result.png)
+   ![Summary and transcript](docs/result.png)
 
-5. 失敗したタスクを開くと、そのタスクのエラーを表示します。
+5. Opening a failed task shows that task's error.
 
-   ![失敗したタスク](docs/failed.png)
+   ![Failed task](docs/failed.png)
